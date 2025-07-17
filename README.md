@@ -30,7 +30,7 @@ Filters all GHCN stations within the selected lat/lon bounding box.
 Matches those stations to ones that recorded the selected variable in the chosen year.
 Downloads .dly files only for relevant stations from NOAA’s FTP.
 Parses and checks which days each station reported valid data.
-Outputs:
+Outputs: 
 A graph of % missing data per day for the chosen region and variable
 A CSV file: missing_summary_<VARIABLE>_<YEAR>_<MONTH>.csv
-Saved automatically into the user’s working file.
+It is saved automatically into the user’s working file.
