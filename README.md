@@ -4,9 +4,9 @@ This script helps the user to automatically find and analyze weather stations fr
 
 Setup:
 	Before running the script, make sure to download the following files from https://www.ncei.noaa.gov/pub/data/ghcn/daily/:
-ghcnd-stations.txt
+***ghcnd-stations.txt ----->
 This file contains metadata for all global GHCN-Daily stations.
-ghcnd-inventory.txt
+**ghcnd-inventory.txt ----->
 This file lists which variables (e.g. TMAX, PRCP) are available at each station and for what years.
 
 Save both files in the same directory as the Python script. 
