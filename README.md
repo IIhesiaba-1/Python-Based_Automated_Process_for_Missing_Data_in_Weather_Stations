@@ -16,8 +16,8 @@ Save both files in the same directory as the Python script.
     2. Maximum latitude 
     3. Minimum longitude 
     4. Maximum longitude
-    5. Year (e.g. 2012)
-    6. Month (e.g. 10)
+    5. Start date (YYYY-MM-DD)
+    6. End date (YYYY-MM-DD)
     7. Variable: must be only of the standard GHCN-Daily variable codes
     8. TMAX: Maximum daily temperature (C)
     9. TMIN: Minimum daily temperature (C)
