@@ -4,10 +4,10 @@ This script helps the user to automatically find and analyze weather stations fr
 
 Setup:
 	Before running the script, make sure to download the following files from https://www.ncei.noaa.gov/pub/data/ghcn/daily/:
-***ghcnd-stations.txt ----->
-This file contains metadata for all global GHCN-Daily stations.
-**ghcnd-inventory.txt ----->
-This file lists which variables (e.g. TMAX, PRCP) are available at each station and for what years.
+"ghcnd-stations.txt"
+	- This file contains metadata for all global GHCN-Daily stations.
+"ghcnd-inventory.txt"
+	- This file lists which variables (e.g. TMAX, PRCP) are available at each station and for what years.
 
 Save both files in the same directory as the Python script. 
 
@@ -31,6 +31,9 @@ Matches those stations to ones that recorded the selected variable in the chosen
 Downloads .dly files only for relevant stations from NOAA’s FTP.
 Parses and checks which days each station reported valid data.
 Outputs: 
-A graph of % missing data per day for the chosen region and variable
-A CSV file: missing_summary_<VARIABLE>_<YEAR>_<MONTH>.csv
-It is saved automatically into the user’s working file.
+- A graph of % missing data per day for the chosen region and variable
+- CSV files:
+	- missing_summary_<VARIABLE>_<YEAR>_<MONTH>.csv
+ 	- selected_stations_<VARIABLE>_<YEAR>_<MONTH>.csv
+  	- stations_with_missing_data_<VARIABLE>_<YEAR>_<MONTH>.csv
+- It is saved automatically into the user’s working file.
