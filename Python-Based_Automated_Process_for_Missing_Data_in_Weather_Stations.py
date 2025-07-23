@@ -124,6 +124,12 @@ for station_id in stations['ID'].unique():
     path = os.path.join(dly_folder, f"{station_id}.dly")
     if os.path.exists(path):
         vals = parse_dly(path, variable, start_date, end_date)
+        missing_days = sum(1 for d in date_list if d not in vals)
+
+        # Skip this station in the summary if it's 100% missing
+        if missing_days == len(date_list):
+            continue
+
         for i, d in enumerate(date_list):
             total[i] += 1
             if d in vals:
