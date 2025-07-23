@@ -163,6 +163,7 @@ print(stations[['ID', 'LAT', 'LON', 'NAME']].to_string(index=False))
 
 # --- Save stations with missing data ---
 stations_with_missing_data = []
+valid_stations = []
 
 for station_id in stations['ID'].unique():
     path = os.path.join(dly_folder, f"{station_id}.dly")
@@ -170,17 +171,25 @@ for station_id in stations['ID'].unique():
         vals = parse_dly(path, variable, start_date, end_date)
         total_days = len(date_list)
         missing_days = sum(1 for d in date_list if d not in vals)
-        if missing_days > 0:
+
+        if missing_days < total_days:  # Exclude stations with 100% missing data
             station_info = stations[stations['ID'] == station_id].iloc[0]
-            stations_with_missing_data.append({
-                'ID': station_id,
-                'LAT': station_info['LAT'],
-                'LON': station_info['LON'],
-                'NAME': station_info['NAME'],
-                'Total Days': total_days,
-                'Missing Days': missing_days,
-                'Missing %': round((missing_days / total_days) * 100, 2)
-            })
+            
+            if missing_days > 0:
+                stations_with_missing_data.append({
+                    'ID': station_id,
+                    'LAT': station_info['LAT'],
+                    'LON': station_info['LON'],
+                    'NAME': station_info['NAME'],
+                    'Total Days': total_days,
+                    'Missing Days': missing_days,
+                    'Missing %': round((missing_days / total_days) * 100, 2)
+                })
+
+            valid_stations.append(station_info)
+            
+# Save only valid stations (exclude 100% missing)
+valid_stations_df = pd.DataFrame(valid_stations).drop_duplicates()
 
 missing_df = pd.DataFrame(stations_with_missing_data)
 missing_df.to_csv(
