@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import requests
+from datetime import datetime, timedelta, date
 
 # USER INPUT 
 try:
@@ -10,11 +11,15 @@ try:
     max_lat = float(input("Max latitude (e.g., 45): "))
     min_lon = float(input("Min longitude (e.g., -85): "))
     max_lon = float(input("Max longitude (e.g., -70): "))
-    year = int(input("Enter year (e.g., 2012): ").strip())
-    month = int(input("Enter month (e.g., 10): "))
+    start_date_str = input("Enter start date (YYYY-MM-DD): ").strip()
+    end_date_str = input("Enter end date (YYYY-MM-DD): ").strip()
+    start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+    if end_date < start_date:
+        raise ValueError("End date must be after start date.")
     variable = input("Enter variable (TMAX, TMIN, PRCP, TAVG): ").strip().upper()
-except:
-    print("Invalid input.")
+except Exception as e:
+    print(f"Invalid input: {e}")
     exit()
 
 # FILE PATHS
@@ -37,10 +42,10 @@ inventory['ID'] = inventory['ID'].astype(str).str.strip()
 
 inv_filtered = inventory[
     (inventory['ELEMENT'] == variable) &
-    (inventory['FIRSTYEAR'] <= year) &
-    (inventory['LASTYEAR'] >= year)
+    (inventory['FIRSTYEAR'] <= start_date.year) &
+    (inventory['LASTYEAR'] >= end_date.year)
 ]
-print(f"Inventory filtered: {len(inv_filtered)} stations with {variable} in {year}.")
+print(f"Inventory filtered: {len(inv_filtered)} stations with {variable} between {start_date} and {end_date}.")
 
 #LOAD & FILTER STATIONS 
 station_data = []
@@ -69,56 +74,66 @@ for station_id in stations['ID'].unique():
     if not os.path.exists(dest):
         try:
             r = requests.get(url)
-            with open(dest, 'wb') as f:
-                f.write(r.content)
-            print(f"Downloaded {station_id}.dly")
+            if r.status_code == 200:
+                with open(dest, 'wb') as f:
+                    f.write(r.content)
+                print(f"Downloaded {station_id}.dly")
+            else:
+                print(f"Failed to download {station_id}: HTTP {r.status_code}")
         except Exception as e:
             print(f"Failed to download {station_id}: {e}")
 
-# PARSE DLY FILE
-def parse_dly(filepath, variable, year, month):
-    days = [None]*31
+# PARSE DLY FILE FOR DATE RANGE
+def parse_dly(filepath, variable, start_date, end_date):
+    days_dict = {}  # maps date objects to counts
     try:
         with open(filepath, 'r') as f:
             for line in f:
-                if line[17:21] == variable and int(line[11:15]) == year and int(line[15:17]) == month:
+                if line[17:21] == variable:
+                    year = int(line[11:15])
+                    month = int(line[15:17])
                     for i in range(31):
-                        val = int(line[21 + i*8 : 26 + i*8][:5])
-                        if val != -9999:
-                            days[i] = days[i] + 1 if days[i] else 1
+                        try:
+                            val = int(line[21 + i*8 : 26 + i*8][:5])
+                            day = i + 1
+                            d = date(year, month, day)
+                            if start_date <= d <= end_date and val != -9999:
+                                if d not in days_dict:
+                                    days_dict[d] = 1
+                                else:
+                                    days_dict[d] += 1
+                        except:
+                            continue
     except Exception as e:
         print(f"Error parsing {filepath}: {e}")
-    return days
+    return days_dict
+
+# Generate date list for summary
+date_list = []
+cur_date = start_date
+while cur_date <= end_date:
+    date_list.append(cur_date)
+    cur_date += timedelta(days=1)
+
+total = np.zeros(len(date_list))
+valid = np.zeros(len(date_list))
+missing_station_ids = [[] for _ in range(len(date_list))]
 
 # LOOP THROUGH STATIONS
-total = np.zeros(31)
-valid = np.zeros(31)
-
 for station_id in stations['ID'].unique():
     path = os.path.join(dly_folder, f"{station_id}.dly")
     if os.path.exists(path):
-        vals = parse_dly(path, variable, year, month)
-        for i in range(31):
-            if vals[i] is not None:
-                valid[i] += 1
+        vals = parse_dly(path, variable, start_date, end_date)
+        for i, d in enumerate(date_list):
             total[i] += 1
-
-# CREATE SUMMARY WITH MISSING STATION IDS PER DAY
-days = np.arange(1, 32)
-missing_station_ids = [[] for _ in range(31)]  # list of missing station IDs per day
-
-# find and populate missing station IDs
-for station_id in stations['ID'].unique():
-    path = os.path.join(dly_folder, f"{station_id}.dly")
-    if os.path.exists(path):
-        vals = parse_dly(path, variable, year, month)
-        for i in range(31):
-            if vals[i] is None:
+            if d in vals:
+                valid[i] += 1
+            else:
                 missing_station_ids[i].append(station_id)
 
-#summary DataFrame
+# SUMMARY TABLE
 summary = pd.DataFrame({
-    'Day': days,
+    'Date': [d.strftime("%Y-%m-%d") for d in date_list],
     'Stations Reporting': valid.astype(int),
     'Stations Missing': (total - valid).astype(int),
     'Total Stations': total.astype(int),
@@ -127,30 +142,34 @@ summary = pd.DataFrame({
 })
 
 print(summary)
+
 # PLOT
-plt.figure(figsize=(10, 5))
-plt.plot(summary['Day'], summary['% Missing'], marker='o', color='darkred')
-plt.title(f'% Missing {variable} for {year}-{str(month).zfill(2)} in Region')
-plt.xlabel('Day')
+plt.figure(figsize=(12, 5))
+plt.plot(summary['Date'], summary['% Missing'], marker='o', color='darkred')
+plt.title(f'% Missing {variable} from {start_date_str} to {end_date_str}')
+plt.xlabel('Date')
 plt.ylabel('% Missing')
+
+plt.ylim(0, 100)
+plt.yticks(np.arange(0, 101, 10))
+
+plt.xticks(rotation=45)
 plt.grid(True)
 plt.tight_layout()
 plt.show()
-
-
 print(f"Final filtered station count: {len(stations)}")
 print("\nSelected Stations:")
 print(stations[['ID', 'LAT', 'LON', 'NAME']].to_string(index=False))
 
-# --- Updated: Save stations with missing data + frequency info ---
+# --- Save stations with missing data ---
 stations_with_missing_data = []
 
 for station_id in stations['ID'].unique():
     path = os.path.join(dly_folder, f"{station_id}.dly")
     if os.path.exists(path):
-        vals = parse_dly(path, variable, year, month)
-        total_days = len(vals)
-        missing_days = sum(1 for v in vals if v is None)
+        vals = parse_dly(path, variable, start_date, end_date)
+        total_days = len(date_list)
+        missing_days = sum(1 for d in date_list if d not in vals)
         if missing_days > 0:
             station_info = stations[stations['ID'] == station_id].iloc[0]
             stations_with_missing_data.append({
@@ -163,20 +182,17 @@ for station_id in stations['ID'].unique():
                 'Missing %': round((missing_days / total_days) * 100, 2)
             })
 
-# Convert to DataFrame and save
 missing_df = pd.DataFrame(stations_with_missing_data)
 missing_df.to_csv(
-    f'stations_with_missing_data_{variable}_{year}_{str(month).zfill(2)}.csv',
+    f'stations_with_missing_data_{variable}_{start_date_str}_to_{end_date_str}.csv',
     index=False
 )
 
 print("Saved stations with missing data and frequency to CSV.")
 
-
 # SAVE OUTPUT
-summary.to_csv(f'missing_summary_{variable}_{year}_{str(month).zfill(2)}.csv', index=False)
+summary.to_csv(f'missing_summary_{variable}_{start_date_str}_to_{end_date_str}.csv', index=False)
 print("Summary saved to CSV.")
 
-# Export selected stations to CSV
-stations[['ID', 'LAT', 'LON', 'NAME']].to_csv(f'selected_stations_{variable}_{year}_{str(month).zfill(2)}.csv', index=False)
+stations[['ID', 'LAT', 'LON', 'NAME']].to_csv(f'selected_stations_{variable}_{start_date_str}_to_{end_date_str}.csv', index=False)
 print("Selected stations saved to CSV.")
